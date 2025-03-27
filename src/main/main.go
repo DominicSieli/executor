@@ -1,105 +1,54 @@
 package main
 
 import (
-	"bufio"
+	"os"
 	"fmt"
 	"log"
-	"os"
-	"os/exec"
-	"path/filepath"
-	"strings"
 	"time"
-
+	"bufio"
+	"os/exec"
+	"strings"
+	"path/filepath"
+	"executor/src/utilities"
 	"github.com/fsnotify/fsnotify"
 )
 
 func main() {
+	var err error
+	var watcher *fsnotify.Watcher
+	defer watcher.Close()
 	reader := bufio.NewReader(os.Stdin)
 
-	// Prompt for monitoring mode
-	fmt.Println("Choose monitoring mode:")
-	fmt.Println("1. Monitor a specific file")
-	fmt.Println("2. Monitor files by extension")
-	fmt.Print("Enter choice (1 or 2): ")
-	choice, _ := reader.ReadString('\n')
-	choice = strings.TrimSpace(choice)
+	fmt.Print("Directory: ")
+	directoryInput, _ := reader.ReadString('\n')
+	directory := strings.TrimSpace(directoryInput)
 
-	var watcher *fsnotify.Watcher
-	var err error
-	var filesToWatch []string
+	files := utilities.FindFiles(directory)
 
-	if choice == "1" {
-		// Monitor single file
-		fmt.Print("Enter the file path to monitor: ")
-		filePath, _ := reader.ReadString('\n')
-		filePath = strings.TrimSpace(filePath)
-
-		// Verify file exists
-		if _, err := os.Stat(filePath); os.IsNotExist(err) {
-			log.Fatalf("File does not exist: %s", filePath)
-		}
-
-		filesToWatch = []string{filePath}
-	} else if choice == "2" {
-		// Monitor by file extension
-		fmt.Print("Enter file extensions to monitor (comma separated, e.g., go,txt,json): ")
-		extensionsInput, _ := reader.ReadString('\n')
-		extensionsInput = strings.TrimSpace(extensionsInput)
-		extensions := strings.Split(extensionsInput, ",")
-
-		// Clean up extensions (remove dots and trim spaces)
-		for i, ext := range extensions {
-			ext = strings.TrimPrefix(ext, ".")
-			ext = strings.TrimSpace(ext)
-			extensions[i] = ext
-		}
-
-		// Find all files with matching extensions in current dir and subdirs
-		err := filepath.Walk(".", func(path string, info os.FileInfo, err error) error {
-			if err != nil {
-				return err
-			}
-			if !info.IsDir() {
-				ext := strings.TrimPrefix(filepath.Ext(path), ".")
-				for _, targetExt := range extensions {
-					if ext == targetExt {
-						filesToWatch = append(filesToWatch, path)
-						break
-					}
-				}
-			}
-			return nil
-		})
-
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		if len(filesToWatch) == 0 {
-			log.Fatal("No files found with the specified extensions")
-		}
-
-		fmt.Printf("Monitoring %d files with extensions: %s\n", len(filesToWatch), extensionsInput)
-	} else {
-		log.Fatal("Invalid choice. Please enter 1 or 2.")
+	if len(files) == 0 {
+		fmt.Println("No files found")
+		os.Exit(0)
 	}
 
-	// Get command to execute
-	fmt.Print("Enter command to execute when files change: ")
+	fmt.Print("Commands: ")
 	commandInput, _ := reader.ReadString('\n')
 	commandInput = strings.TrimSpace(commandInput)
 	commandParts := strings.Fields(commandInput)
+
+	if len(commandParts) == 0 {
+		fmt.Println("No commands specified")
+		os.Exit(0)
+	}
 
 	// Create watcher
 	watcher, err = fsnotify.NewWatcher()
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer watcher.Close()
 
 	// Add directories containing the files to watch
 	dirsAdded := make(map[string]bool)
-	for _, file := range filesToWatch {
+	for _, file := range files {
 		dir := filepath.Dir(file)
 		if !dirsAdded[dir] {
 			err = watcher.Add(dir)
@@ -123,7 +72,7 @@ func main() {
 					return
 				}
 				// Check if the event is for one of our watched files
-				for _, watchedFile := range filesToWatch {
+				for _, watchedFile := range files {
 					if event.Name == watchedFile && (event.Op&fsnotify.Write == fsnotify.Write || event.Op&fsnotify.Create == fsnotify.Create) {
 						// Debounce by sending to channel with non-blocking write
 						select {
