@@ -6,10 +6,10 @@ import (
 	"log"
 	"time"
 	"bufio"
-	"os/exec"
 	"strings"
 	"path/filepath"
-	"executor/src/utilities"
+	"executor/src/terminal"
+	"executor/src/filesystem"
 	"github.com/fsnotify/fsnotify"
 )
 
@@ -23,7 +23,7 @@ func main() {
 	directoryInput, _ := reader.ReadString('\n')
 	directory := strings.TrimSpace(directoryInput)
 
-	files := utilities.FindFiles(directory)
+	files := filesystem.FindFiles(directory)
 
 	if len(files) == 0 {
 		fmt.Println("No files found")
@@ -33,9 +33,9 @@ func main() {
 	fmt.Print("Commands: ")
 	commandInput, _ := reader.ReadString('\n')
 	commandInput = strings.TrimSpace(commandInput)
-	commandParts := strings.Fields(commandInput)
+	commands := strings.Fields(commandInput)
 
-	if len(commandParts) == 0 {
+	if len(commands) == 0 {
 		fmt.Println("No commands specified")
 		os.Exit(0)
 	}
@@ -101,10 +101,7 @@ func main() {
 		drainEvents(eventCh)
 
 		fmt.Println("Change detected. Executing command...")
-		cmd := exec.Command(commandParts[0], commandParts[1:]...)
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		err := cmd.Run()
+		err := terminal.ExecuteCommands(commands)
 		if err != nil {
 			log.Printf("Command execution failed: %v\n", err)
 		}
