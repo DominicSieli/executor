@@ -1,14 +1,13 @@
 package monitor
 
-import (
-	"fmt"
-	"log"
-	"os"
-	"os/exec"
-	"path/filepath"
-	"time"
-	"github.com/fsnotify/fsnotify"
-)
+import "os"
+import "fmt"
+import "log"
+import "time"
+import "os/exec"
+import "path/filepath"
+import "executor/src/terminal"
+import "github.com/fsnotify/fsnotify"
 
 func NewFileMonitor(config *Config, watcher *fsnotify.Watcher) *FileMonitor {
 	return &FileMonitor{
@@ -17,89 +16,88 @@ func NewFileMonitor(config *Config, watcher *fsnotify.Watcher) *FileMonitor {
 	}
 }
 
-func (fm *FileMonitor) Start() error {
-	// Add all subdirectories to watcher
-	if err := filepath.Walk(fm.config.Directory, func(path string, info os.FileInfo, err error) error {
+func (fileMonitor *FileMonitor) Start() error {
+	if err := filepath.Walk(fileMonitor.config.Directory, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
+
 		if info.IsDir() {
-			if err := fm.watcher.Add(path); err != nil {
+			if err := fileMonitor.watcher.Add(path); err != nil {
+				terminal.Clear()
 				log.Printf("Error watching directory %s: %v", path, err)
-			} else {
-				fmt.Printf("Watching directory: %s\n", path)
 			}
 		}
+
 		return nil
 	}); err != nil {
 		return err
 	}
 
-	// Channel to debounce events
-	eventCh := make(chan struct{}, 1)
+	eventChannel := make(chan struct{}, 1)
 
-	// Start goroutine to handle events
 	go func() {
 		for {
 			select {
-			case event, ok := <-fm.watcher.Events:
+			case event, ok := <-fileMonitor.watcher.Events:
 				if !ok {
 					return
 				}
 
-				// Handle new directory creation
 				if event.Op&fsnotify.Create == fsnotify.Create {
 					if info, err := os.Stat(event.Name); err == nil && info.IsDir() {
-						if err := fm.watcher.Add(event.Name); err == nil {
-							fmt.Printf("New directory detected and added to watch list: %s\n", event.Name)
+						if err := fileMonitor.watcher.Add(event.Name); err == nil {
+							terminal.Clear()
+							fmt.Printf("New directory added: %s\n", event.Name)
 						}
 					}
 				}
 
-				// Trigger on any write or create operation
 				if event.Op&fsnotify.Write == fsnotify.Write || event.Op&fsnotify.Create == fsnotify.Create {
 					select {
-					case eventCh <- struct{}{}:
+					case eventChannel <- struct{}{}:
 					default:
 					}
 				}
 
-			case err, ok := <-fm.watcher.Errors:
+			case err, ok := <-fileMonitor.watcher.Errors:
 				if !ok {
 					return
 				}
+
+				terminal.Clear()
 				log.Println("Error:", err)
 			}
 		}
 	}()
 
-	// Process debounced events
-	fmt.Printf("Monitoring directory %s for changes... Press Ctrl+C to stop.\n", fm.config.Directory)
-	for range eventCh {
-		time.Sleep(fm.config.DebouncePeriod)
-		drainEvents(eventCh)
-		fm.executeCommand()
+	for range eventChannel {
+		time.Sleep(fileMonitor.config.DebouncePeriod)
+		drainEvents(eventChannel)
+		fileMonitor.executeCommand()
 	}
 
 	return nil
 }
 
-func drainEvents(ch chan struct{}) {
+func drainEvents(channel chan struct{}) {
 	for {
 		select {
-		case <-ch:
+		case <-channel:
 		default:
 			return
 		}
 	}
 }
 
-func (fm *FileMonitor) executeCommand() {
-	fmt.Println("Change detected. Executing command...")
-	cmd := exec.Command(fm.config.Command[0], fm.config.Command[1:]...)
+func (fileMonitor *FileMonitor) executeCommand() {
+	terminal.Clear()
+	cmd := exec.Command(fileMonitor.config.Command[0], fileMonitor.config.Command[1:]...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
+
 	if err := cmd.Run(); err != nil {
+		terminal.Clear()
 		log.Printf("Command execution failed: %v\n", err)
 	}
 }

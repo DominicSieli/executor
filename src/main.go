@@ -1,57 +1,61 @@
 package main
 
-import (
-	"bufio"
-	"fmt"
-	"log"
-	"os"
-	"time"
-	"path/filepath"
-	"strings"
-	"github.com/fsnotify/fsnotify"
-	"executor/src/monitor"
-)
+import "os"
+import "fmt"
+import "log"
+import "time"
+import "bufio"
+import "strings"
+import "path/filepath"
+import "executor/src/monitor"
+import "executor/src/terminal"
+import "github.com/fsnotify/fsnotify"
 
 func main() {
 	reader := bufio.NewReader(os.Stdin)
 
-	// Get directory to monitor
-	fmt.Print("Enter directory to monitor: ")
-	dirPath, _ := reader.ReadString('\n')
-	dirPath = strings.TrimSpace(dirPath)
+	terminal.Clear()
+	fmt.Print("Directory: ")
+	directory, _ := reader.ReadString('\n')
+	directory = strings.TrimSpace(directory)
 
-	// Verify directory exists
-	if _, err := os.Stat(dirPath); os.IsNotExist(err) {
-		log.Fatalf("Directory does not exist: %s", dirPath)
+	if _, err := os.Stat(directory); os.IsNotExist(err) {
+		terminal.Clear()
+		log.Fatalf("Directory does not exist: %s", directory)
 	}
 
-	// Get absolute path
-	absPath, err := filepath.Abs(dirPath)
+	path, err := filepath.Abs(directory)
+
 	if err != nil {
+		terminal.Clear()
 		log.Fatalf("Failed to get absolute path: %v", err)
 	}
 
-	// Get command to execute
-	fmt.Print("Enter command to execute when files change: ")
+	terminal.Clear()
+	fmt.Print("Command: ")
 	commandInput, _ := reader.ReadString('\n')
 	commandInput = strings.TrimSpace(commandInput)
-	commandParts := strings.Fields(commandInput)
+	command := strings.Fields(commandInput)
 
-	// Create and start monitor
 	config := &monitor.Config{
-		Directory:		absPath,
-		Command:		commandParts,
+		Directory:		path,
+		Command:		command,
 		DebouncePeriod: 200 * time.Millisecond,
 	}
 
 	watcher, err := fsnotify.NewWatcher()
+
 	if err != nil {
+		terminal.Clear()
 		log.Fatal(err)
 	}
+
 	defer watcher.Close()
 
 	monitor := monitor.NewFileMonitor(config, watcher)
+
 	if err := monitor.Start(); err != nil {
+		terminal.Clear()
 		log.Fatal(err)
 	}
 }

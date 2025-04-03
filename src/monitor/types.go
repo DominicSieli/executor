@@ -1,13 +1,11 @@
 package monitor
 
-import (
-	"time"
-	"github.com/fsnotify/fsnotify"
-)
+import "time"
+import "github.com/fsnotify/fsnotify"
 
 type Config struct {
-	Directory	   string	// Directory to monitor
-	Command		   []string // Command to execute
+	Directory	   string
+	Command		   []string
 	DebouncePeriod time.Duration
 }
 
