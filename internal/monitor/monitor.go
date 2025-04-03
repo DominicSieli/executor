@@ -6,7 +6,7 @@ import "log"
 import "time"
 import "os/exec"
 import "path/filepath"
-import "executor/src/terminal"
+import "executor/internal/terminal"
 import "github.com/fsnotify/fsnotify"
 
 func NewFileMonitor(config *Config, watcher *fsnotify.Watcher) *FileMonitor {

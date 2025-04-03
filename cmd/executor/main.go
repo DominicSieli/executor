@@ -7,8 +7,8 @@ import "time"
 import "bufio"
 import "strings"
 import "path/filepath"
-import "executor/src/monitor"
-import "executor/src/terminal"
+import "executor/internal/monitor"
+import "executor/internal/terminal"
 import "github.com/fsnotify/fsnotify"
 
 func main() {
